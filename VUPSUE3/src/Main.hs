@@ -40,19 +40,8 @@ setup w = do
         mkLayout :: [Element] -> UI Element
         mkLayout xs = column $
             [row [element elSave, element elLoad], row [element elText] ]
-        
-        addInput :: UI ()
-        addInput = do
-            elInput <- UI.input # set value "0"
-            on (domEvent "livechange") elInput $ \_ -> displayTotal
-            liftIO $ modifyIORef inputs (elInput:)
-        
-        removeInput :: UI ()
-        removeInput = liftIO $ modifyIORef inputs (drop 1)
     
-    on UI.click elSave    $ \_ -> addInput    >> redoLayout
-    on UI.click elLoad $ \_ -> removeInput >> redoLayout
-    addInput >> redoLayout
+    redoLayout
 
 
 {-----------------------------------------------------------------------------
