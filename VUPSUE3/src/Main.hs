@@ -20,6 +20,7 @@ setup w = do
 
     elAdd    <- UI.button # set UI.text "Add"
     elRemove <- UI.button # set UI.text "Remove"
+    elText   <- UI.textarea
     elResult <- UI.span
 
     inputs   <- liftIO $ newIORef []
@@ -38,12 +39,7 @@ setup w = do
 
         mkLayout :: [Element] -> UI Element
         mkLayout xs = column $
-            [row [element elAdd, element elRemove]
-            ,UI.hr]
-            ++ map element xs ++
-            [UI.hr
-            ,row [UI.span # set text "Sum: ", element elResult]
-            ]
+            [row [element elText] ]
         
         addInput :: UI ()
         addInput = do
