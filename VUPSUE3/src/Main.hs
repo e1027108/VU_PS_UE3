@@ -18,45 +18,22 @@ setup w = do
     -- active elements
     return w # set title "Editor"
 
-    elSave    <- UI.button # set UI.text "Save"
-    elLoad <- UI.button # set UI.text "Load"
+    elSave   <- UI.button # set UI.text "Save"
+    elLoad   <- UI.button # set UI.text "Load"
+    elPath   <- UI.input # set UI.value "C:\\"
     elText   <- UI.textarea
-    elResult <- UI.span
 
     inputs   <- liftIO $ newIORef []
     
     -- functionality
     let
-        displayTotal = void $ do
-            xs <- mapM (get value) =<< liftIO (readIORef inputs)
-            element elResult # set text (showNumber . sum $ map readNumber xs)
-        
         redoLayout :: UI ()
         redoLayout = void $ do
             layout <- mkLayout =<< liftIO (readIORef inputs)
             getBody w # set children [layout]
-            displayTotal
 
         mkLayout :: [Element] -> UI Element
         mkLayout xs = column $
-            [row [element elSave, element elLoad], row [element elText] ]
+            [row [element elSave, element elLoad, element elPath], row [element elText] ]
     
     redoLayout
-
-
-{-----------------------------------------------------------------------------
-    Functionality
-------------------------------------------------------------------------------}
-type Number = Maybe Double
-
-instance Num Number where
-    (+) = liftA2 (+)
-    (-) = liftA2 (-)
-    (*) = liftA2 (*)
-    abs = fmap abs
-    signum = fmap signum
-    fromInteger = pure . fromInteger
-
-readNumber :: String -> Number
-readNumber s = listToMaybe [x | (x,"") <- reads s]    
-showNumber   = maybe "--" show
