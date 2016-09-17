@@ -16,10 +16,10 @@ main = startGUI defaultConfig setup
 setup :: Window -> UI ()
 setup w = do
     -- active elements
-    return w # set title "BarTab"
+    return w # set title "Editor"
 
-    elAdd    <- UI.button # set UI.text "Add"
-    elRemove <- UI.button # set UI.text "Remove"
+    elSave    <- UI.button # set UI.text "Save"
+    elLoad <- UI.button # set UI.text "Load"
     elText   <- UI.textarea
     elResult <- UI.span
 
@@ -39,7 +39,7 @@ setup w = do
 
         mkLayout :: [Element] -> UI Element
         mkLayout xs = column $
-            [row [element elText] ]
+            [row [element elSave, element elLoad], row [element elText] ]
         
         addInput :: UI ()
         addInput = do
@@ -50,8 +50,8 @@ setup w = do
         removeInput :: UI ()
         removeInput = liftIO $ modifyIORef inputs (drop 1)
     
-    on UI.click elAdd    $ \_ -> addInput    >> redoLayout
-    on UI.click elRemove $ \_ -> removeInput >> redoLayout
+    on UI.click elSave    $ \_ -> addInput    >> redoLayout
+    on UI.click elLoad $ \_ -> removeInput >> redoLayout
     addInput >> redoLayout
 
 
