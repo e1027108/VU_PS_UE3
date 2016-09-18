@@ -26,7 +26,7 @@ setup w = do
      ("autocorrect","off !important"),("autocomplete","off !important")]
 
     inputs <- liftIO $ newIORef []
-    
+
     -- functionality
     let
         redoLayout :: UI ()
@@ -38,5 +38,11 @@ setup w = do
         mkLayout xs = column $
             [row [element elSave, element elLoad, element elPath] # set style [("margin-bottom", "10px")]
             , row [element elText] # set style [("width","1000px"),("height","600px")]]
-    
+
+        loadContents :: UI Element
+        loadContents = do
+            path <- elPath # get value
+            element elText # set text path
+
+    on UI.click elLoad $ \_ -> loadContents
     redoLayout
