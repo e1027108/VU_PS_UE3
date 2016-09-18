@@ -26,7 +26,7 @@ setup w = do
      ("-moz-box-sizing", "border-box"),("box-sizing","border-box"),("tab-size","2")] # set (attr "spellcheck") "false"
      
     --This would be missing automatic scroll bars I think
-    {-elText <- UI.thehtml # set style [("border","1px"),("width", "100%"),("height", "100%"),("padding-left","10px"),("-webkit-box-sizing", "border-box"),
+    {-elText <- UI.div # set style [("border","1px"),("width", "100%"),("height", "100%"),("padding-left","10px"),("-webkit-box-sizing", "border-box"),
      ("-moz-box-sizing", "border-box"),("box-sizing","border-box"),("tab-size","2")] # set (attr "contenteditable" ) "true" # set (attr "spellcheck") "false"-}
 
     inputs <- liftIO $ newIORef []
@@ -58,9 +58,7 @@ setup w = do
         --check syntax prototype, huge changes needed
         checkSyntax :: UI ()
         checkSyntax = void $ do
-            elComment <- UI.label # set style [("color","green")]
-            element elComment # set text "checkSyntax: true"
-            --redoLayout
+            element elComment # set text "checkSyntax: true" # set style [("color","#00FF44")] --TODO this should become a real check
 
     on UI.click elLoad $ \_ -> loadContents
     on UI.click elSave $ \_ -> saveContents
