@@ -22,8 +22,9 @@ setup w = do
     elLoad <- UI.button # set UI.text "Load" # set style [("margin-right", "5px")]
     elPath <- UI.input # set UI.value "C:\\" # set style [("width", "200px")]
     elText <- UI.textarea # set style [("width", "100%"),("height", "100%"),("padding-left","10px"),("-webkit-box-sizing", "border-box"),
-     ("-moz-box-sizing", "border-box"),("box-sizing","border-box"),("tab-size","2"),("spellcheck","false !important"),("text-decoration","none !important"),
-     ("autocorrect","off !important"),("autocomplete","off !important")]
+     ("-moz-box-sizing", "border-box"),("box-sizing","border-box"),("tab-size","2")] # set (attr "spellcheck") "false"
+    {-elText <- UI.thehtml # set style [("width", "100%"),("height", "100%"),("padding-left","10px"),("-webkit-box-sizing", "border-box"),
+     ("-moz-box-sizing", "border-box"),("box-sizing","border-box"),("tab-size","2")] # set (attr "contenteditable" ) "true" # set (attr "spellcheck") "false"-}
 
     inputs <- liftIO $ newIORef []
 
