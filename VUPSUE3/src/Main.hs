@@ -42,7 +42,8 @@ setup w = do
         loadContents :: UI Element
         loadContents = do
             path <- elPath # get value
-            element elText # set text path
+            content <- liftIO(readFile path)
+            element elText # set text content
 
     on UI.click elLoad $ \_ -> loadContents
     redoLayout

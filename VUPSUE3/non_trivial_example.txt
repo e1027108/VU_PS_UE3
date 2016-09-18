@@ -1,0 +1,72 @@
+%idea for this program:
+%prime factor computation
+{
+	%read userinput (needs a second line break?)
+	input = "Please input a positive number to compute its prime factors!".userinput; %waits before checking sytax further?
+	
+	%get the rest by modulo (takes: dividend, divisor)
+	computeRest = {
+		rest = { in = *dividend + "%" + *divisor; } + "bc".iosyscall;
+		[ rest.result = "0" : 
+			[ rest.err = "" : ^rest.out; ]
+		]
+		^ "-1"; %TODO do something with this
+	} ;
+	
+	%computes the smallest prime factor (takes: dividend, divisor)
+	getSmallestPrimeFactor = {
+		rest = { dividend = *dividend; divisor = *divisor; } + *computeRest;
+		[ rest = "-1" : 
+			^ rest;
+		]
+
+		[ rest # "0" :
+			plusOne = { in = *divisor + "+1"; } + "bc".iosyscall;
+			newDivisor = plusOne.out;
+			^ { dividend = *dividend; divisor = *newDivisor; } + *getSmallestPrimeFactor;
+		]
+
+		[ rest = "0" : 
+			^ divisor;
+		]
+	} ;
+	
+	%computes all prime factors (takes: dividend)
+	computePrimeFactors = {
+		negative = {} + ("test 1 -ge " + dividend).syscall;
+	
+		[ negative = "0" :
+			[ dividend = "1" :
+				^ "none";
+			]
+			^ "none because zero or negative";
+		]
+		[ negative = "2" :
+			^ "invalid input";
+		]
+	
+		factors = "";
+		smallest = { dividend = *dividend; divisor = "2"; } + *getSmallestPrimeFactor;
+		
+		result = { in = *dividend + "/" + *smallest; } + "bc".iosyscall.out;
+		%result = result.out;
+		%{ in = *dividend + "/" + *smallest + "=" + *result ; } + "echo".iosyscall;
+		factors = factors + " " + smallest;
+		
+		[ result # "1" :
+			newFactors = { dividend = *result; divisor = "2"; } + *computePrimeFactors;
+			factors = factors + ", " + newFactors;
+			^ factors;
+		]
+		
+		[ result = "1" :
+			^ factors;
+		]
+
+	} ;
+
+	test = {dividend = *input;} + computePrimeFactors;
+	%{ in = "Prime factors: " + *test; } + "echo".iosyscall;
+	("Prime factors: " + test).print;
+	
+}
