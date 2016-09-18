@@ -44,6 +44,13 @@ setup w = do
             path <- elPath # get value
             content <- liftIO(readFile path)
             element elText # set text content
+            
+        saveContents :: UI ()
+        saveContents = do
+            path <- elPath # get value
+            content <- elText # get value
+            liftIO(writeFile path content)
 
     on UI.click elLoad $ \_ -> loadContents
+    on UI.click elSave $ \_ -> saveContents
     redoLayout
