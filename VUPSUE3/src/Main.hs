@@ -3,7 +3,6 @@
 import Control.Applicative
 import Control.Monad
 import Data.IORef
-import Data.Maybe
 
 import qualified Graphics.UI.Threepenny as UI
 import Graphics.UI.Threepenny.Core
@@ -22,12 +21,12 @@ setup w = do
     elLoad <- UI.button # set UI.text "Load" # set style [("margin-right", "5px")]
     elPath <- UI.input # set UI.value "C:\\" # set style [("width", "200px")]
     elComment <- UI.label # set style [("margin-left","20px"),("width","300px")]
-    elText <- UI.textarea # set style [("width", "100%"),("height", "100%"),("padding-left","10px"),("-webkit-box-sizing", "border-box"),
-     ("-moz-box-sizing", "border-box"),("box-sizing","border-box"),("tab-size","2")] # set (attr "spellcheck") "false"
-     
+    {-elText <- UI.textarea # set style [("width", "100%"),("height", "100%"),("padding-left","10px"),("-webkit-box-sizing", "border-box"),
+     ("-moz-box-sizing", "border-box"),("box-sizing","border-box"),("tab-size","2")] # set (attr "spellcheck") "false"-}
+
     --This would be missing automatic scroll bars I think
-    {-elText <- UI.div # set style [("border","1px"),("width", "100%"),("height", "100%"),("padding-left","10px"),("-webkit-box-sizing", "border-box"),
-     ("-moz-box-sizing", "border-box"),("box-sizing","border-box"),("tab-size","2")] # set (attr "contenteditable" ) "true" # set (attr "spellcheck") "false"-}
+    elText <- UI.div # set style [("border","1px"),("width", "100%"),("height", "100%"),("padding-left","10px"),("-webkit-box-sizing", "border-box"),
+     ("-moz-box-sizing", "border-box"),("box-sizing","border-box"),("tab-size","2")] # set (attr "contenteditable" ) "true" # set (attr "spellcheck") "false"
 
     inputs <- liftIO $ newIORef []
 
@@ -47,7 +46,16 @@ setup w = do
         loadContents = do
             path <- elPath # get value
             content <- liftIO(readFile path)
-            element elText # set text content
+            --TODO use this to later dynamically format file contents
+            --content <- formatHTML content
+            element elText # set html content
+        
+        --THIS should be the converter, refuses to compile
+        {-formatHTML :: String -> String
+        formatHTML input = do
+            front <- "<html><body><div style=\"color:blue\">"
+            back <- "<\\div><\\body><\\html>"
+            return (front ++ input ++ back)-}
             
         saveContents :: UI ()
         saveContents = do
@@ -59,8 +67,10 @@ setup w = do
         checkSyntax :: UI ()
         checkSyntax = void $ do
             element elComment # set text "checkSyntax: true" # set style [("color","#00FF44")] --TODO this should become a real check
+            redoLayout
 
     on UI.click elLoad $ \_ -> loadContents
     on UI.click elSave $ \_ -> saveContents
-    on UI.valueChange elText $ \_ -> checkSyntax --doesn't work
+    on UI.blur elText $ \_ -> checkSyntax
+    on UI.keydown elText $ \_ -> liftIO(print "test") --TODO will handle tabs to be used??? maybe just use single space instead
     redoLayout
