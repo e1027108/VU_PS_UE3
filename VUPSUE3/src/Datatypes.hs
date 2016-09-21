@@ -23,10 +23,10 @@ removeCommentsLineByLine list = (removeLineComments (head list) 0) ++ (removeCom
 
 --this is non-exhaustive for ghci use, since this would need an additional escape character, but works with files
 removeLineComments :: String -> Integer -> String
-removeLineComments (x:xs) inComments
-    | (x == '%') && (inComments == 0) = ""
-    | (x == '\"') && (inComments == 0) = [x] ++ (removeLineComments xs 1)
-    | (x == '\"') && (inComments == 1) = [x] ++ (removeLineComments xs 0)
+removeLineComments (x:xs) inQuotes
+    | (x == '%') && (inQuotes == 0) = ""
+    | (x == '\"') && (inQuotes == 0) = [x] ++ (removeLineComments xs 1)
+    | (x == '\"') && (inQuotes == 1) = [x] ++ (removeLineComments xs 0)
     | otherwise = [x] ++ (removeLineComments xs 0)
     
 checkBlock :: String -> Bool
