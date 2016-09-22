@@ -11,6 +11,11 @@ data GuardOp = Equals | NotEquals deriving Show
 
 data Expression a = StringLiteral String [String] (Maybe (Expression a)) | Block a [String] (Maybe (Expression a)) | Name String [String] (Maybe (Expression a)) | Expression [String] (Maybe (Expression a)) deriving Show
 
+{-
+ TODO:
+    refit every function to output a Block instead of a Bool
+-}
+ 
 checkSyntax :: String -> Bool
 checkSyntax text
     | length text < 2 = False
@@ -28,8 +33,8 @@ removeCommentsLineByLine list
 removeLineComments :: String -> Integer -> String
 removeLineComments (x:xs) inQuotes
     | (length xs) == 0 = [x]
-    | (x == '%') && (inQuotes == 0) = trace (show ("comment: " ++ [x] ++ xs)) ""
-    | (x == '%') && (inQuotes == 1) = trace (show ("rest: " ++ [x] ++ xs)) ([x] ++ (removeLineComments xs inQuotes))
+    | (x == '%') && (inQuotes == 0) = "" -- trace (show ("comment: " ++ [x] ++ xs)) ""
+    | (x == '%') && (inQuotes == 1) = "" -- trace (show ("rest: " ++ [x] ++ xs)) ([x] ++ (removeLineComments xs inQuotes))
     | (x == '\"') && (inQuotes == 0) = [x] ++ (removeLineComments xs 1)
     | (x == '\"') && (inQuotes == 1) = [x] ++ (removeLineComments xs 0)
     | otherwise = [x] ++ (removeLineComments xs inQuotes)
@@ -48,6 +53,30 @@ checkBlockEnd end
     | ((last end) == ' ') = checkBlockEnd (init end)
     | ((last end) == '}') = True
     | otherwise = False
+
+-- TODO implement
+checkCommandSequence :: String -> Bool
+checkCommandSequence text = True
+
+-- TODO implement
+checkGuardCommand :: String -> Bool
+checkGuardCommand text = True
+
+-- TODO implement
+checkAssignment :: String -> Bool
+checkAssignment text = True
+
+-- TODO implement
+checkReturnStatement :: String -> Bool
+checkReturnStatement text = True
+
+-- dummy method
+checkExpression :: String -> Bool
+checkExpression text = True
+
+-- dummy method
+checkGuard :: String -> Bool
+checkGuard text = True
     
 parseFile :: IO ()
 parseFile = do
