@@ -18,6 +18,8 @@ parseFile :: IO ()
 parseFile = do
     content <- readFile "..\\code.txt" --later this will load from UI (tbr)
     print (checkSyntax content)
+    content <- readFile "..\\code2.txt" --later this will load from UI (tbr)
+    print (checkSyntax content)
     content <- readFile "..\\non_trivial_example.txt"
     print (checkSyntax content)
 
@@ -144,48 +146,23 @@ findAssignmentEquals text id openBrackets openQuotes
 
 checkGuard :: String -> Bool
 checkGuard text = do
-    let exprIndex = (determineEndIndex text 0 0 0 0)
+    let exprIndex = (determineEndIndexForGuard text 0 0 0 0)
     if (exprIndex > -1)
         then do
-            let expr1 = fst (splitAt exprIndex text)
-            let expr2 = snd (splitAt exprIndex text)
-            if ( (elemIndex '=' expr2) /= Nothing)
+            let expr1 = fst (splitAt (exprIndex - 1) text)
+            let expr2 = snd (splitAt (exprIndex + 2) text)
+            let expr2Index = (determineEndIndex expr2 0 0 0 0)
+            if (expr2Index > -1)
                 then do
-                    let equals = True
-                    let newexpr1 = fst(splitAt (exprIndex + (fromJust (elemIndex '=' expr2))) text)
-                    let newexpr2 = snd(splitAt (exprIndex + 2 + (fromJust (elemIndex '=' expr2))) text)
-                    let expr2Index = (determineEndIndex newexpr2 0 0 0 0)
-                    if (expr2Index > -1)
-                        then do
-                            if ((elemIndex ',' newexpr2) /= Nothing)
-                                then do                                
-                                    let newestexpr2 = fst (splitAt ((fromJust(elemIndex ',' newexpr2)) - 1) newexpr2)
-                                    let guard = snd (splitAt (fromJust(elemIndex ',' newexpr2) + 2) newexpr2)
-                                    checkGuard guard                                    
-                            else
-                                checkExpression newexpr1 && checkExpression newexpr2
+                    if ((elemIndex ',' expr2) /= Nothing)
+                        then do                                
+                            let newexpr2 = fst (splitAt ((fromJust(elemIndex ',' expr2)) - 1) expr2)
+                            let guard = snd (splitAt (fromJust(elemIndex ',' expr2) + 2) expr2)
+                            checkExpression expr1 && checkExpression expr2 && checkGuard guard                                    
                     else
-                        False
+                        checkExpression expr1 && checkExpression expr2
             else
-                if ((elemIndex '#' expr2) /= Nothing)
-                    then do
-                        let equals = False
-                        let newexpr1 = fst(splitAt (exprIndex + (fromJust (elemIndex '#' expr2))) text)
-                        let newexpr2 = snd(splitAt (exprIndex + 2 + (fromJust (elemIndex '#' expr2))) text)
-                        let expr2Index = (determineEndIndex newexpr2 0 0 0 0)
-                        if (expr2Index > -1)
-                            then do
-                                if ((elemIndex ',' newexpr2) /= Nothing)
-                                    then do                                
-                                        let newestexpr2 = fst (splitAt ((fromJust(elemIndex ',' newexpr2)) - 1) newexpr2)
-                                        let guard = snd (splitAt (fromJust(elemIndex ',' newexpr2) + 2) newexpr2)
-                                        checkGuard guard
-                                else
-                                    checkExpression newexpr1 && checkExpression newexpr2
-                        else
-                            False
-                else
-                    False                    
+                False
     else
         False
         
@@ -227,7 +204,8 @@ checkExpression text = do
         
 determineEndIndex :: String -> Int -> Int -> Int -> Int -> Int
 determineEndIndex text openQuotes openBlock openBrackets index
-    | ((text) == []) = index
+    | ((text) == []) && ((openQuotes /= 0) || (openBlock /= 0) || (openBrackets /= 0)) = -1
+    | ((text) == []) && (openQuotes == 0) && (openBlock == 0) && (openBrackets == 0) = index
     | (((head text) == ' ') || ((head text) == '.')) && (openQuotes == 0) && (openBlock == 0) && (openBrackets == 0) = (index)
     
     | (index >= 0) && ((head text) == '\"' && openQuotes == 0) && (openBlock == 0) && (openBrackets == 0) = determineEndIndex (tail text) (openQuotes + 1) openBlock openBrackets (index + 1)
@@ -245,7 +223,25 @@ determineEndIndex text openQuotes openBlock openBrackets index
     
     | otherwise = determineEndIndex (tail text) openQuotes openBlock openBrackets (index+1)
     
+determineEndIndexForGuard :: String -> Int -> Int -> Int -> Int -> Int
+determineEndIndexForGuard text openQuotes openBlock openBrackets index
+    | ((text) == []) && ((openQuotes /= 0) || (openBlock /= 0) || (openBrackets /= 0)) = -1
+    | ((text) == []) && (openQuotes == 0) && (openBlock == 0) && (openBrackets == 0) = -1
+    | (((head text) == '=') || ((head text) == '#')) && (openQuotes == 0) && (openBlock == 0) && (openBrackets == 0) = (index)
+    
+    | (index >= 0) && ((head text) == '\"' && openQuotes == 0) && (openBlock == 0) && (openBrackets == 0) = determineEndIndexForGuard (tail text) (openQuotes + 1) openBlock openBrackets (index + 1)
+    | (index >= 0) && ((head text) == '\"' && openQuotes == 1) && (openBlock == 0) && (openBrackets == 0) = determineEndIndexForGuard (tail text) (openQuotes - 1) openBlock openBrackets (index + 1)
         
+    | (index >= 0) && ((head text) == '{' && openBlock == 0) && (openQuotes == 0) && (openBrackets == 0) = determineEndIndexForGuard (tail text) openQuotes (openBlock + 1) openBrackets (index + 1)
+    | (index >= 0) && ((head text) == '{' && openBlock >= 1) = determineEndIndexForGuard (tail text) openQuotes (openBlock + 1) openBrackets (index + 1)
+    | (index >= 0) && ((head text) == '}' && openBlock >= 1) = determineEndIndexForGuard (tail text) openQuotes (openBlock - 1) openBrackets (index + 1)
+    
+    | (index >= 0) && ((head text) == '(' && openBrackets == 0) && (openQuotes == 0) && (openBlock == 0) = determineEndIndexForGuard (tail text) openQuotes openBlock (openBrackets + 1) (index + 1)
+    | (index >= 0) && ((head text) == '(' && openBrackets >= 1) = determineEndIndexForGuard (tail text) openQuotes openBlock (openBrackets + 1) (index + 1)
+    | (index >= 0) && ((head text) == ')' && openBrackets >= 1) = determineEndIndexForGuard (tail text) openQuotes openBlock (openBrackets - 1) (index + 1)
+    
+    | otherwise = determineEndIndexForGuard (tail text) openQuotes openBlock openBrackets (index+1)
+  
 checkExprPart1 :: String -> Bool
 checkExprPart1 text
     | ((head text) == '\"') && ((last text) == '\"') = True
