@@ -163,7 +163,7 @@ checkGuard text = do
                             else
                                 checkExpression newexpr1 && checkExpression newexpr2
                     else
-                        trace ("hier1") False
+                        False
             else
                 if ((elemIndex '#' expr2) /= Nothing)
                     then do
@@ -181,11 +181,11 @@ checkGuard text = do
                                 else
                                     checkExpression newexpr1 && checkExpression newexpr2
                         else
-                            trace ("hier2") False
+                            False
                 else
-                    trace ("guardexpr1: " ++ show (text)) False                    
+                    False                    
     else
-        trace ("hier4") False
+        False
         
 
 checkExpression :: String -> Bool
@@ -197,7 +197,7 @@ checkExpression text = do
             if (checkExprPart1 expr1)
                 then do
                      let names = snd (splitAt exprIndex text)
-                     if (names /= "")
+                     if ((names /= "") && (head names) == '.')
                         then do
                             let newnames = splitOn "." names
                             if ((elemIndex '+' (last newnames)) /= Nothing)
@@ -208,21 +208,26 @@ checkExpression text = do
                                         then do
                                             any checkExpression (take 2 optexpr)
                                     else
-                                        trace ("hier5") False
+                                        False
                             else
                                 all checkNames (tail newnames)
                      else
-                        True
+                        if ((elemIndex '+' names) /= Nothing)
+                            then do
+                                let optexpr = snd(splitAt ((fromJust (elemIndex '+' names)) + 2) names)
+                                checkExpression (optexpr)
+                        else
+                            True
             else
-                trace ("hier6") False
+                False
     else
-        trace ("hier7") False
+        False
         
 determineEndIndex :: String -> Int -> Int -> Int -> Int -> Int
 determineEndIndex text openQuotes openBlock openBrackets index
-    | (index == 0 && not((head text) `elem` ['\"','{','('])) = (length text)
-    | ((text) == []) = -1
-
+    | ((text) == []) = index
+    | (((head text) == ' ') || ((head text) == '.')) && (openQuotes == 0) && (openBlock == 0) && (openBrackets == 0) = (index)
+    
     | (index >= 0) && ((head text) == '\"' && openQuotes == 0) && (openBlock == 0) && (openBrackets == 0) = determineEndIndex (tail text) (openQuotes + 1) openBlock openBrackets (index + 1)
     | (index >= 0) && ((head text) == '\"' && openQuotes == 1) && (openBlock == 0) && (openBrackets == 0)= (index + 1)
         
