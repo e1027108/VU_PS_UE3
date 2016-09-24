@@ -44,7 +44,7 @@ removeLineComments (x:xs) inQuotes
 checkBlock :: String -> Bool
 checkBlock text
     | (head text) == '{' && (last text) == '}' = checkCommandSequence (trim (init (tail text))) -- trim all chars except first and last
-    | otherwise = trace (show text) False
+    | otherwise = False
     
 checkCommandSequence :: String -> Bool
 checkCommandSequence text = do
@@ -106,11 +106,11 @@ checkGuardCommand text openBrackets openQuotes id
 findGuardColon :: String -> Int -> Int -> Int -> Int
 findGuardColon text id openBrackets openQuotes
     | id >= (length text) = 0 -- no ':' outside of brackets
-    | (text !! id) == ':' && openBrackets == 0 && openQuotes == 0 = id -- position of first outside ':'
-    | isBracket (text !! id) == 1 && openQuotes == 0 = findAssignmentEquals text (id + 1) (openBrackets + 1) 0
-    | isBracket (text !! id) == 2 && openQuotes == 0 = findAssignmentEquals text (id + 1) (openBrackets - 1) 0
-    | (text !! id) == '\"' = findAssignmentEquals text (id + 1) openBrackets (toggleQuotes openQuotes)
-    | otherwise = findAssignmentEquals text (id + 1) openBrackets openQuotes
+    | (text !! id) == ':' && openBrackets == 1 && openQuotes == 0 = id -- position of first outside ':'
+    | isBracket (text !! id) == 1 && openQuotes == 0 = findGuardColon text (id + 1) (openBrackets + 1) 0
+    | isBracket (text !! id) == 2 && openQuotes == 0 = findGuardColon text (id + 1) (openBrackets - 1) 0
+    | (text !! id) == '\"' = findGuardColon text (id + 1) openBrackets (toggleQuotes openQuotes)
+    | otherwise = findGuardColon text (id + 1) openBrackets openQuotes
 
 checkAssignmentName :: String -> Int -> Bool
 checkAssignmentName text astDone
@@ -183,7 +183,7 @@ checkGuard text = do
                         else
                             trace ("hier2") False
                 else
-                    trace ("guardexpr1: " ++ show (expr1)) False                    
+                    trace ("guardexpr1: " ++ show (text)) False                    
     else
         trace ("hier4") False
         
@@ -214,7 +214,7 @@ checkExpression text = do
                      else
                         True
             else
-                trace ("hier6" ++ text) False
+                trace ("hier6") False
     else
         trace ("hier7") False
         
