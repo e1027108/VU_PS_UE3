@@ -18,6 +18,8 @@ data Expression a = StringLiteral String [String] (Maybe (Expression a)) | Block
  TODO:
     functions need index counter variable so we can send stuff to expression or guard and to later highlight errors (and rebuild code?)
     refit every function to output a Block instead of a Bool
+    replace most bracket checks with isBracket
+    do not call commandsequence within commands, but rather take command's returned indices to call a new command
 -}
 
 parseFile :: IO ()
@@ -39,11 +41,11 @@ removeCommentsLineByLine list
     | (length (head list)) == 0 = (removeCommentsLineByLine (tail list))
     | otherwise = (removeLineComments (head list) 0) ++ (removeCommentsLineByLine (tail list)) --TODO whole thing now has no '\n'
 
-removeLineComments :: String -> Integer -> String
+removeLineComments :: String -> Int -> String
 removeLineComments (x:xs) inQuotes
     | (length xs) == 0 = [x]
-    | (x == '%') && (inQuotes == 0) = "" -- trace (show ("comment: " ++ [x] ++ xs)) ""
-    | (x == '%') && (inQuotes == 1) = [x] ++ (removeLineComments xs inQuotes) -- trace (show ("rest: " ++ [x] ++ xs)) ([x] ++ (removeLineComments xs inQuotes))
+    | (x == '%') && (inQuotes == 0) = ""
+    | (x == '%') && (inQuotes == 1) = [x] ++ (removeLineComments xs inQuotes)
     | (x == '\"') = [x] ++ (removeLineComments xs (toggleQuotes inQuotes))
     | otherwise = [x] ++ (removeLineComments xs inQuotes)
 
@@ -51,69 +53,109 @@ checkBlock :: String -> Bool
 checkBlock text
     | (head text) == '{' && (last text) == '}' = checkCommandSequence (trim (init (tail text))) -- trim all chars except first and last
     | otherwise = trace (show text) False
-
+    
 checkCommandSequence :: String -> Bool
-checkCommandSequence text
-    | (head text) == '^' = checkReturnStatement text 0 0 0
-    | (head text) == '[' = checkGuardCommand text 0 0
-    | otherwise = checkAssignment text
+checkCommandSequence text = do
+    if (length text) == 0 then
+        True
+    else if (head text) == '^' then do
+        let rs = (checkReturnStatement text 0 0 0 0)
+        if rs == -1 then
+            False
+        else
+            -- check inner expression, then check next command
+            checkExpression (trim (tail (take (rs-1) text))) && checkCommandSequence (trim (drop (rs+1) text))
+    else if (head text) == '[' then do
+        let gc = (checkGuardCommand text 0 0 0)
+        if gc == -1 then
+            False
+        else
+            checkGuard (trim (tail (take (gc-1) text))) && checkCommandSequence (trim (drop (gc+1) text))
+    else do
+        let eqid = findAssignmentEquals text 0 0 0
+        if eqid /= 0 then
+            if not (checkAssignmentName (take (eqid-1) text) 0) then
+                False
+            else do
+                let asex = (checkAssignmentExpression (drop (eqid+1) text) 0 0 0)
+                if asex == -1 then
+                    False
+                else 
+                    checkExpression (trim (take (asex-1) (drop (eqid+1) text))) && checkCommandSequence (trim (drop (eqid+asex+2) text))
+        else do
+            let asex = checkAssignmentExpression text 0 0 0
+            if asex == -1 then
+                False
+            else
+                checkExpression (trim (take (asex-1) text)) && checkCommandSequence (trim (drop (asex+1) text))
 
-checkReturnStatement :: String -> Integer -> Integer -> Integer -> Bool
-checkReturnStatement text openBrackets openQuotes gotCircumflex
-    | (head text) == '^' && gotCircumflex == 0 = checkReturnStatement (tail text) openBrackets openQuotes 1
-    | (head text) == '^' && gotCircumflex == 1 && openQuotes == 0 && openBrackets == 0 = False
-    | ( (head text) == '[' || (head text) == '(' || (head text) == '{' ) && openQuotes == 0 = checkReturnStatement (tail text) (openBrackets + 1) 0 1
-    | (head text) == '\"' = checkReturnStatement (tail text) openBrackets (toggleQuotes openQuotes) 1
-    | ( (head text) == ']' || (head text) == ')' || (head text) == '}' ) && openQuotes == 0 = checkReturnStatement (tail text) (openBrackets - 1) 0 1
-    | (head text) == ';' && openQuotes == 0 && openBrackets == 0 = checkCommandSequence (trim (tail text)) --TODO isolate first call with last call --> checkExpression
-    | otherwise = checkReturnStatement (tail text) openBrackets openQuotes gotCircumflex
+-- -1 leads to False, everything else to True
+checkReturnStatement :: String -> Int -> Int -> Int -> Int -> Int
+checkReturnStatement text openBrackets openQuotes gotCircumflex id
+    | (head text) == '^' && gotCircumflex == 0 = checkReturnStatement (tail text) openBrackets openQuotes 1 (id+1)
+    | (head text) == '^' && gotCircumflex == 1 && openQuotes == 0 && openBrackets == 0 = -1
+    | (isBracket (head text)) == 1 && openQuotes == 0 = checkReturnStatement (tail text) (openBrackets + 1) 0 1 (id+1)
+    | (head text) == '\"' = checkReturnStatement (tail text) openBrackets (toggleQuotes openQuotes) 1 (id+1)
+    | (isBracket (head text)) == 2 && openQuotes == 0 = checkReturnStatement (tail text) (openBrackets - 1) 0 1 (id+1)
+    | (head text) == ';' && openQuotes == 0 && openBrackets == 0 = (id+1) --TODO isolate first call with last call --> checkExpression
+    | otherwise = checkReturnStatement (tail text) openBrackets openQuotes gotCircumflex (id+1)
     
-checkGuardCommand :: String -> Integer -> Integer -> Bool
-checkGuardCommand text openBrackets openQuotes
-    | (head text) == '[' && openBrackets == 0 && openQuotes == 0 = checkGuardCommand (tail text) 1 0
-    | ( (head text) == '[' || (head text) == '(' || (head text) == '{' ) && openBrackets >= 1 && openQuotes == 0 = checkGuardCommand (tail text) (openBrackets + 1) openQuotes
-    | (head text) == ']' && openBrackets == 1 && openQuotes == 0 = checkCommandSequence (trim (tail text)) --TODO isolate first call with last call --> checkGuard
-    | ( (head text) == ']' || (head text) == ')' || (head text) == '}' ) && openBrackets >= 1 && openQuotes == 0 = checkGuardCommand (tail text) (openBrackets - 1) openQuotes
-    | (head text) == '\"' = checkGuardCommand (tail text) openBrackets (toggleQuotes openQuotes)
-    | otherwise = checkGuardCommand (tail text) openBrackets openQuotes
+checkGuardCommand :: String -> Int -> Int -> Int -> Int
+checkGuardCommand text openBrackets openQuotes id
+    | (head text) == '[' && openBrackets == 0 && openQuotes == 0 = checkGuardCommand (tail text) 1 0 (id+1)
+    | (isBracket (head text)) == 1 && openBrackets >= 1 && openQuotes == 0 = checkGuardCommand (tail text) (openBrackets + 1) openQuotes (id+1)
+    | (head text) == ']' && openBrackets == 1 && openQuotes == 0 = (id+1) --TODO isolate first call with last call --> checkGuard
+    | (isBracket (head text)) == 2 && openBrackets >= 1 && openQuotes == 0 = checkGuardCommand (tail text) (openBrackets - 1) openQuotes (id+1)
+    | (head text) == '\"' = checkGuardCommand (tail text) openBrackets (toggleQuotes openQuotes) (id+1)
+    | otherwise = checkGuardCommand (tail text) openBrackets openQuotes (id+1)
 
-checkAssignment :: String -> Bool
-checkAssignment text
-    --TODO what about a "*name" expression without '=' before it?
-    | (head text) == '*' = checkAssignmentName text 0
-    | (isAlpha (head text)) = checkAssignmentName text 1
-    | otherwise = checkAssignmentExpression text 0 0
-    
-checkAssignmentName :: String -> Integer -> Bool
+checkAssignmentName :: String -> Int -> Bool
 checkAssignmentName text astDone
+    | (length text) == 0 = True
     | (head text) == '*' && astDone == 0 = checkAssignmentName (tail text) 0
     | (head text) == '*' && astDone == 1 = False
     | isAlpha (head text) && astDone == 0 = checkAssignmentName (tail text) 1
     | isAlphaNum (head text) && astDone == 1 = checkAssignmentName (tail text) 1
-    | (head text) == '=' && astDone == 1 = checkAssignmentExpression (trim (tail text)) 0 0
-    | not (isSpace (head text)) && astDone == 1 = False -- isAlphaNum and (head text) == '=' are caugth above
-    | otherwise = checkAssignmentName (tail text) astDone
+    | isSpace (head text) && astDone == 1 = True -- name over
+    | otherwise = False -- unexpected character
     
-checkAssignmentExpression :: String -> Integer -> Integer -> Bool
-checkAssignmentExpression text openBrackets openQuotes
-    | (head text) == '{' && openQuotes == 0 = checkAssignmentExpression (tail text) (openBrackets + 1) 0
-    | (head text) == '}' && openQuotes == 0 = checkAssignmentExpression (tail text) (openBrackets - 1) 0
-    | (head text) == '\"' = checkAssignmentExpression (tail text) openBrackets (toggleQuotes openQuotes)
-    | (head text) == ';' = checkCommandSequence (trim (tail text)) --TODO isolate first call with last call --> checkExpression
-    
+checkAssignmentExpression :: String -> Int -> Int -> Int -> Int
+checkAssignmentExpression text openBrackets openQuotes id
+    | (length text) == 0 = -1
+    | (isBracket (head text)) == 1 && openQuotes == 0 = checkAssignmentExpression (tail text) (openBrackets + 1) 0 (id+1)
+    | (isBracket (head text)) == 2 && openQuotes == 0 = checkAssignmentExpression (tail text) (openBrackets - 1) 0 (id+1)
+    | (head text) == '\"' = checkAssignmentExpression (tail text) openBrackets (toggleQuotes openQuotes) (id+1)
+    | (head text) == ';' && openBrackets == 0 && openQuotes == 0 = (id+1) --TODO isolate first call with last call --> checkExpression
+    | otherwise = checkAssignmentExpression (tail text) openBrackets openQuotes (id+1)
+
+findAssignmentEquals :: String -> Int -> Int -> Int -> Int
+findAssignmentEquals text id openBrackets openQuotes
+    | id >= (length text) = 0 -- no '='
+    | (text !! id) == '=' && openBrackets == 0 && openQuotes == 0 = id -- position of '='
+    | isBracket (text !! id) == 1 && openQuotes == 0 = findAssignmentEquals text (id + 1) (openBrackets + 1) 0
+    | isBracket (text !! id) == 2 && openQuotes == 0 = findAssignmentEquals text (id + 1) (openBrackets - 1) 0
+    | (text !! id) == '\"' = findAssignmentEquals text (id + 1) openBrackets (toggleQuotes openQuotes)
+    | otherwise = findAssignmentEquals text (id + 1) openBrackets openQuotes
+
 -- dummy method
 checkExpression :: String -> Bool
-checkExpression text = True
+checkExpression text = trace (show ("exp: " ++ text)) True --hopefully only good stuff
 
 -- dummy method
 checkGuard :: String -> Bool
-checkGuard text = True
+checkGuard text = trace (show ("gua: " ++ text)) True
     
-toggleQuotes :: Integer -> Integer
+toggleQuotes :: Int -> Int
 toggleQuotes a
     | a == 0 = 1
     | a == 1 = 0
-    | otherwise = -1 -- exception? 
+    | otherwise = -1 -- exception?
+
+isBracket :: Char -> Int
+isBracket a
+    | a == '{' || a == '(' || a == '[' = 1 -- openBracket
+    | a == '}' || a == ')' || a == ']' = 2 -- closeBracket
+    | otherwise = 0 -- False
 
 -- otherwise ambiguity problems and overload problems with strip
 trim :: String -> String
