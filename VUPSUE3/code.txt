@@ -1,0 +1,17 @@
+{
+    max = {  % number a, number b, number c -> number or "error"
+        [ c = "" : c = "0"; ]  % by default use "0" if c not specified
+        ab = {} + ("test " + a + " -le " + b).syscall;
+        [  ab = "1" : 
+            ac = {} + ("test " + a + " -le " + c).syscall;
+	    [ ac = "1" : ^c; ]
+            [ ac = "0" : ^a; ]
+        ][ ab = "0" :
+            ^ { a = *a; b = *c; c = *b; } + *max;
+        ]
+        ^ "error";
+    } ; %decomment?
+    result = { a = "12"; b = "27"; c = "18"; } + max;
+    {} + ("echo " + result).syscall;
+    {} + ("echo " + ({ a = "-12"; b = "-27"; } + max)).syscall;
+}

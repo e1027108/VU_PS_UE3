@@ -16,7 +16,9 @@ data Expression a = StringLiteral String [String] (Maybe (Expression a)) | Block
 
 parseFile :: IO ()
 parseFile = do
-    content <- readFile "..\\non_trivial_example.txt" --later this will load from UI (tbr)
+    content <- readFile "..\\code.txt" --later this will load from UI (tbr)
+    print (checkSyntax content)
+    content <- readFile "..\\non_trivial_example.txt"
     print (checkSyntax content)
 
 checkSyntax :: String -> Bool
@@ -64,7 +66,7 @@ checkCommandSequence text = do
             False
         else
             -- checking guard, then command sequence which should be executed on correct guard, then rest of command sequence
-            checkGuard (trim (take (ci-1) (tail text))) && checkCommandSequence (trim (drop (ci+1) (take (gc-1) text))) && checkCommandSequence (trim (drop (gc+1) text))
+            checkGuard (trim (take (ci-1) (tail text))) && checkCommandSequence (trim (drop (ci+1) (take (gc-1) text))) && checkCommandSequence (trim (drop (gc) text))
     else do
         let eqid = findAssignmentEquals text 0 0 0
         if eqid /= 0 then

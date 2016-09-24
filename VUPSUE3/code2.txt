@@ -1,0 +1,24 @@
+{
+    error = "0";
+    fact = { % number num -> number; set error if something is wrong
+        continue = {} + ("test 1 -ge " + num).syscall;
+        [  continue = "0" :
+            [ {} + ("test 0 = " + num).syscall # "0" :
+                *error = "1";
+            ]
+            ^ "1";
+        ]
+        nextnum = { in = *num + "-1"; } + "bc -lq".iosyscall;
+        [ nextnum.result = "0" : 
+            result = { in = { num = **nextnum.out; } + **fact + "*" + *nextnum.out; } + "bc -lq".iosyscall;
+            [ result.result = "0" :
+                ^ result.out;
+            ]
+        ]
+        *error = "2";
+        ^ "0";
+    }
+    value = { num = "5"; } + fact;
+    [ error = "0" : { in = "result: " + *value; } + "echo".iosyscall; ]
+    [ error # "0" : { in = "error #" + *error; } + "echo".iosyscall; ]
+}
