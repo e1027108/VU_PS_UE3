@@ -162,7 +162,7 @@ checkGuard text = do
                             else
                                 checkExpression newexpr1 && checkExpression newexpr2
                     else
-                        False
+                        trace ("hier1") False
             else
                 if ((elemIndex '#' expr2) /= Nothing)
                     then do
@@ -180,11 +180,11 @@ checkGuard text = do
                                 else
                                     checkExpression newexpr1 && checkExpression newexpr2
                         else
-                            False
+                            trace ("hier2") False
                 else
-                    False                    
+                    trace ("guardexpr1: " ++ show (expr1)) False                    
     else
-        False
+        trace ("hier4") False
         
 
 checkExpression :: String -> Bool
@@ -207,15 +207,15 @@ checkExpression text = do
                                         then do
                                             any checkExpression (take 2 optexpr)
                                     else
-                                        False
+                                        trace ("hier5") False
                             else
                                 all checkNames (tail newnames)
                      else
                         True
             else
-                False
+                trace ("hier6") False
     else
-        False
+        trace ("hier7") False
         
 determineEndIndex :: String -> Int -> Int -> Int -> Int -> Int
 determineEndIndex text openQuotes openBlock openBrackets index
@@ -243,7 +243,7 @@ checkExprPart1 text
     | ((head text) == '\"') && ((last text) == '\"') = True
     | ((head text) == '{') && ((last text) == '}') = (checkBlock text)
     | ((head text) == '(') && ((last text) == ')') = (checkExpression (init(drop 1 text)))
-    | ((head text) == '*') && (isAlpha(head text)) = True
+    | ((head text) == '*') || (isAlpha(head text)) = True
     | otherwise = False
 
 checkNames :: String -> Bool
