@@ -14,16 +14,6 @@ data GuardOp = Equals | NotEquals deriving Show
 
 data Expression a = StringLiteral String [String] (Maybe (Expression a)) | Block a [String] (Maybe (Expression a)) | Name String [String] (Maybe (Expression a)) | Expression [String] (Maybe (Expression a)) deriving Show
 
-{-
- NOTES:
-    all checks from Block downward must receive trimped text as input!
- TODO:
-    functions need index counter variable so we can send stuff to expression or guard and to later highlight errors (and rebuild code?)
-    refit every function to output a Block instead of a Bool
-    replace most bracket checks with isBracket
-    do not call commandsequence within commands, but rather take command's returned indices to call a new command
--}
-
 parseFile :: IO ()
 parseFile = do
     content <- readFile "..\\non_trivial_example.txt" --later this will load from UI (tbr)
@@ -69,10 +59,12 @@ checkCommandSequence text = do
             checkExpression (trim (tail (take (rs-1) text))) && checkCommandSequence (trim (drop (rs+1) text))
     else if (head text) == '[' then do
         let gc = (checkGuardCommand text 0 0 0)
-        if gc == -1 then
+        let ci = (findGuardColon (take (gc-1) text) 0 0 0)
+        if (gc == -1) || (ci == 0) then
             False
         else
-            checkGuard (trim (tail (take (gc-1) text))) && checkCommandSequence (trim (drop (gc+1) text))
+            -- checking guard, then command sequence which should be executed on correct guard, then rest of command sequence
+            checkGuard (trim (take (ci-1) (tail text))) && checkCommandSequence (trim (drop (ci+1) (take (gc-1) text))) && checkCommandSequence (trim (drop (gc+1) text))
     else do
         let eqid = findAssignmentEquals text 0 0 0
         if eqid /= 0 then
@@ -99,17 +91,26 @@ checkReturnStatement text openBrackets openQuotes gotCircumflex id
     | (isBracket (head text)) == 1 && openQuotes == 0 = checkReturnStatement (tail text) (openBrackets + 1) 0 1 (id+1)
     | (head text) == '\"' = checkReturnStatement (tail text) openBrackets (toggleQuotes openQuotes) 1 (id+1)
     | (isBracket (head text)) == 2 && openQuotes == 0 = checkReturnStatement (tail text) (openBrackets - 1) 0 1 (id+1)
-    | (head text) == ';' && openQuotes == 0 && openBrackets == 0 = (id+1) --TODO isolate first call with last call --> checkExpression
+    | (head text) == ';' && openQuotes == 0 && openBrackets == 0 = (id+1)
     | otherwise = checkReturnStatement (tail text) openBrackets openQuotes gotCircumflex (id+1)
     
 checkGuardCommand :: String -> Int -> Int -> Int -> Int
 checkGuardCommand text openBrackets openQuotes id
     | (head text) == '[' && openBrackets == 0 && openQuotes == 0 = checkGuardCommand (tail text) 1 0 (id+1)
     | (isBracket (head text)) == 1 && openBrackets >= 1 && openQuotes == 0 = checkGuardCommand (tail text) (openBrackets + 1) openQuotes (id+1)
-    | (head text) == ']' && openBrackets == 1 && openQuotes == 0 = (id+1) --TODO isolate first call with last call --> checkGuard
+    | (head text) == ']' && openBrackets == 1 && openQuotes == 0 = (id+1)
     | (isBracket (head text)) == 2 && openBrackets >= 1 && openQuotes == 0 = checkGuardCommand (tail text) (openBrackets - 1) openQuotes (id+1)
     | (head text) == '\"' = checkGuardCommand (tail text) openBrackets (toggleQuotes openQuotes) (id+1)
     | otherwise = checkGuardCommand (tail text) openBrackets openQuotes (id+1)
+    
+findGuardColon :: String -> Int -> Int -> Int -> Int
+findGuardColon text id openBrackets openQuotes
+    | id >= (length text) = 0 -- no ':' outside of brackets
+    | (text !! id) == ':' && openBrackets == 0 && openQuotes == 0 = id -- position of first outside ':'
+    | isBracket (text !! id) == 1 && openQuotes == 0 = findAssignmentEquals text (id + 1) (openBrackets + 1) 0
+    | isBracket (text !! id) == 2 && openQuotes == 0 = findAssignmentEquals text (id + 1) (openBrackets - 1) 0
+    | (text !! id) == '\"' = findAssignmentEquals text (id + 1) openBrackets (toggleQuotes openQuotes)
+    | otherwise = findAssignmentEquals text (id + 1) openBrackets openQuotes
 
 checkAssignmentName :: String -> Int -> Bool
 checkAssignmentName text astDone
@@ -213,7 +214,7 @@ checkExpression text = do
                      else
                         True
             else
-                trace ("hier6") False
+                trace ("hier6" ++ text) False
     else
         trace ("hier7") False
         
