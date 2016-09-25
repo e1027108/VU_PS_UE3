@@ -70,16 +70,21 @@ setup w = do
             content <- elText # get value
             liftIO(writeFile path content)
         
-        checkSyntax :: UI ()
+        checkSyntax :: UI Element
         checkSyntax = do
             code <- elText # get value
             if (DT.checkSyntax code) then
                 element elComment # set text "checkSyntax: true" # set style [("color","#44FF44")]
             else
                 element elComment # set text "checkSyntax: false" # set style [("color","#FF4444")]
-            redoLayout
+        
+        -- this takes a while to update
+        resetComment :: UI Element
+        resetComment = do
+            element elComment # set text ""
 
     on UI.click elLoad $ \_ -> loadContents
     on UI.click elSave $ \_ -> saveContents
     on UI.click elCheck $ \_ -> checkSyntax
+    on UI.valueChange elText $ \_ -> resetComment
     redoLayout
