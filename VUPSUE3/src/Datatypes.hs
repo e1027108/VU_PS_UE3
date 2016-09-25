@@ -1,3 +1,5 @@
+module Datatypes where
+
 import Data.List
 import Data.List.Split
 import Data.Char
