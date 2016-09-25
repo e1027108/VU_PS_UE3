@@ -5,7 +5,7 @@ module Main where
 import Control.Applicative
 import Control.Monad
 import Data.IORef
-import Control.Concurrent (threadDelay)
+import Debug.Trace
 import Datatypes as DT
 
 import qualified Graphics.UI.Threepenny as UI
@@ -53,16 +53,22 @@ setup w = do
         loadContents = do
             path <- elPath # get value
             content <- liftIO(readFile path)
-            --TODO use this to later dynamically format file contents
-            --content <- formatHTML content
+            --let formatted = formatHTML content
+            --element elText # set html formatted
             element elText # set html content
         
-        --THIS should be the converter, refuses to compile
-        {-formatHTML :: String -> String
+        {- -- in text area this will just print the tags with it
+        formatHTML :: String -> String
         formatHTML input = do
-            front <- "<html><body><div style=\"color:blue\">"
-            back <- "</div></body></html>"
-            return (front ++ input ++ back)-}
+            let front = "<html><body><div style=\"color:blue\">"
+            let back = "</div></body></html>"
+            let middle = insertBreak (lines input)
+            trace (show (front ++ middle ++ back)) (front ++ middle ++ back)
+            
+        insertBreak :: [String] -> String
+        insertBreak arr
+            | (length arr) == 0 = ""
+            | otherwise = (((head arr) ++ "<br/>") ++ insertBreak (tail arr))-}
             
         saveContents :: UI ()
         saveContents = do
@@ -73,12 +79,11 @@ setup w = do
         checkSyntax :: UI Element
         checkSyntax = do
             code <- elText # get value
-            if (DT.checkSyntax code) then
+            if (snd (DT.checkSyntax code)) then
                 element elComment # set text "checkSyntax: true" # set style [("color","#44FF44")]
             else
                 element elComment # set text "checkSyntax: false" # set style [("color","#FF4444")]
         
-        -- this takes a while to update
         resetComment :: UI Element
         resetComment = do
             element elComment # set text ""
