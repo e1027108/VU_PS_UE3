@@ -6,29 +6,31 @@ import Data.Char
 import Debug.Trace
 import Data.Maybe
 
-data Block a = Empty | Command a [(Block a)] deriving Show
+data Block a = B (CommandSequence a) deriving Show
 
-data Command a = Guardcommand (Guard a) [(Command a)] | Assignment String (Expression a) | Returnstatement (Expression a) deriving Show
+data CommandSequence a = Empty | CS (Command a) (Maybe (CommandSequence a)) deriving Show
+
+data Command a = Guardcommand (Guard a) (CommandSequence a) | Assignment (Maybe String) (Expression a) | Returnstatement (Expression a) deriving Show
 
 data Guard a = G (Expression a) GuardOp (Expression a) (Maybe (Guard a)) deriving Show
 
 data GuardOp = Equals | NotEquals deriving Show
 
-data Expression a = StringLiteral String [String] (Maybe (Expression a)) | Block a [String] (Maybe (Expression a)) | Name String [String] (Maybe (Expression a)) | Expression [String] (Maybe (Expression a)) deriving Show
+data Expression a = StringLiteral String [String] (Maybe (Expression a)) | Block a [String] (Maybe (Expression a)) | Name String [String] (Maybe (Expression a)) | Expression a [String] (Maybe (Expression a)) deriving Show
 
 parseFile :: IO ()
 parseFile = do
-    content <- readFile "..\\code.txt" --later this will load from UI (tbr)
+    content <- readFile "..\code.txt"
     print (checkSyntax content)
-    content <- readFile "..\\code2.txt" --later this will load from UI (tbr)
+    content <- readFile "..\code2.txt"
     print (checkSyntax content)
-    content <- readFile "..\\non_trivial_example.txt"
+    content <- readFile "..\non_trivial_example.txt"
     print (checkSyntax content)
 
 checkSyntax :: String -> Bool
 checkSyntax text
     | length text < 2 = False
-    | length text >= 2 = (checkBlock (trim (removeComments text)))
+    | length text >= 2 = (snd (checkBlock (trim (removeComments text))))
 
 removeComments :: String -> String
 removeComments text = (removeCommentsLineByLine (lines text))
@@ -47,49 +49,58 @@ removeLineComments (x:xs) inQuotes
     | (x == '\"') = [x] ++ (removeLineComments xs (toggleQuotes inQuotes))
     | otherwise = [x] ++ (removeLineComments xs inQuotes)
 
-checkBlock :: String -> Bool
-checkBlock text
-    | (head text) == '{' && (last text) == '}' = checkCommandSequence (trim (init (tail text))) -- trim all chars except first and last
-    | otherwise = False
+checkBlock :: String -> (Block String, Bool)
+checkBlock text = do
+    if (head text) == '{' && (last text) == '}' then do
+        let bl = (checkCommandSequence (trim (init (tail text))))
+        (B (fst bl), snd bl)
+    else
+        ( B Empty, False)
     
-checkCommandSequence :: String -> Bool
+checkCommandSequence :: String -> (CommandSequence String, Bool)
 checkCommandSequence text = do
     if (length text) == 0 then
-        True
+        (Empty, True)
     else if (head text) == '^' then do
         let rs = (checkReturnStatement text 0 0 0 0)
         if rs == -1 then
-            False
-        else
-            -- check inner expression, then check next command
-            checkExpression (trim (tail (take (rs-1) text))) && checkCommandSequence (trim (drop (rs+1) text))
+            (Empty, False)
+        else do
+            let chex = checkExpression (trim (tail (take (rs-1) text)))
+            let chcs = checkCommandSequence (trim (drop (rs+1) text))
+            ( CS (Returnstatement (fst chex)) (Just (fst chcs)), (snd chex && snd chcs))
     else if (head text) == '[' then do
         let gc = (checkGuardCommand text 0 0 0)
         let ci = (findGuardColon (take (gc-1) text) 0 0 0)
         if (gc == -1) || (ci == 0) then
-            False
-        else
-            -- checking guard, then command sequence which should be executed on correct guard, then rest of command sequence
-            checkGuard (trim (take (ci-1) (tail text))) && checkCommandSequence (trim (drop (ci+1) (take (gc-1) text))) && checkCommandSequence (trim (drop (gc) text))
+            (Empty, False)
+        else do
+            let chgu = checkGuard (trim (take (ci-1) (tail text)))
+            let chin = checkCommandSequence (trim (drop (ci+1) (take (gc-1) text)))
+            let chou = checkCommandSequence (trim (drop (gc) text))
+            ( CS (Guardcommand (fst chgu) (fst chin)) (Just(fst chou)), (snd chgu && snd chin && snd chou))
     else do
         let eqid = findAssignmentEquals text 0 0 0
         if eqid /= 0 then
             if not (checkAssignmentName (take (eqid-1) text) 0) then
-                False
+                (Empty, False)
             else do
                 let asex = (checkAssignmentExpression (drop (eqid+1) text) 0 0 0)
                 if asex == -1 then
-                    False
-                else 
-                    checkExpression (trim (take (asex-1) (drop (eqid+1) text))) && checkCommandSequence (trim (drop (eqid+asex+2) text))
+                    (Empty, False)
+                else do
+                    let chex = checkExpression (trim (take (asex-1) (drop (eqid+1) text)))
+                    let chcs = checkCommandSequence (trim (drop (eqid+asex+2) text))
+                    ( CS (Assignment (Just(take (eqid-1) text)) (fst chex)) (Just(fst chcs)), (snd chex && snd chcs))
         else do
             let asex = checkAssignmentExpression text 0 0 0
             if asex == -1 then
-                False
-            else
-                checkExpression (trim (take (asex-1) text)) && checkCommandSequence (trim (drop (asex+1) text))
+                (Empty, False)
+            else do
+                let chex = checkExpression (trim (take (asex-1) text))
+                let chcs = checkCommandSequence (trim (drop (asex+1) text))
+                (CS (Assignment Nothing (fst chex)) (Just (fst chcs)), (snd chex && snd chcs))
 
--- -1 leads to False, everything else to True
 checkReturnStatement :: String -> Int -> Int -> Int -> Int -> Int
 checkReturnStatement text openBrackets openQuotes gotCircumflex id
     | (head text) == '^' && gotCircumflex == 0 = checkReturnStatement (tail text) openBrackets openQuotes 1 (id+1)
@@ -167,7 +178,6 @@ checkGuard text = do
                 False
     else
         False
-        
 
 checkExpression :: String -> Bool
 checkExpression text = do
@@ -247,7 +257,7 @@ determineEndIndexForGuard text openQuotes openBlock openBrackets index
 checkExprPart1 :: String -> Bool
 checkExprPart1 text
     | ((head text) == '\"') && ((last text) == '\"') = True
-    | ((head text) == '{') && ((last text) == '}') = (checkBlock text)
+    | ((head text) == '{') && ((last text) == '}') = snd (checkBlock text)
     | ((head text) == '(') && ((last text) == ')') = (checkExpression (init(drop 1 text)))
     | ((head text) == '*') || (isAlpha(head text)) = True
     | otherwise = False
@@ -261,7 +271,7 @@ toggleQuotes :: Int -> Int
 toggleQuotes a
     | a == 0 = 1
     | a == 1 = 0
-    | otherwise = -1 -- exception?
+    | otherwise = -1
 
 isBracket :: Char -> Int
 isBracket a
