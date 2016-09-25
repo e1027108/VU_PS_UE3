@@ -20,11 +20,11 @@ data Expression a = StringLiteral String [String] (Maybe (Expression a)) | Block
 
 parseFile :: IO ()
 parseFile = do
-    content <- readFile "..\code.txt"
+    content <- readFile "..\\code.txt"
     print (checkSyntax content)
-    content <- readFile "..\code2.txt"
+    content <- readFile "..\\code2.txt"
     print (checkSyntax content)
-    content <- readFile "..\non_trivial_example.txt"
+    content <- readFile "..\\non_trivial_example.txt"
     print (checkSyntax content)
 
 checkSyntax :: String -> Bool
@@ -157,9 +157,9 @@ findAssignmentEquals text id openBrackets openQuotes
     | (text !! id) == '\"' = findAssignmentEquals text (id + 1) openBrackets (toggleQuotes openQuotes)
     | otherwise = findAssignmentEquals text (id + 1) openBrackets openQuotes
 
-checkGuard :: String -> Bool
+checkGuard :: String -> (Guard String, Bool)
 checkGuard text = do
-    let exprIndex = (determineEndIndexForGuard text 0 0 0 0)
+    let (guardOpParam, exprIndex) = (determineEndIndexForGuard text 0 0 0 0)
     if (exprIndex > -1)
         then do
             let expr1 = fst (splitAt (exprIndex - 1) text)
@@ -171,15 +171,28 @@ checkGuard text = do
                         then do                                
                             let newexpr2 = fst (splitAt ((fromJust(elemIndex ',' expr2)) - 1) expr2)
                             let guard = snd (splitAt (fromJust(elemIndex ',' expr2) + 2) expr2)
-                            checkExpression expr1 && checkExpression expr2 && checkGuard guard                                    
-                    else
-                        checkExpression expr1 && checkExpression expr2
+                            let checkExpre1 = checkExpression expr1
+                            let checkExpre2 = checkExpression newexpr2
+                            let checkG = checkGuard guard                            
+                            if ((snd checkExpre1) && (snd checkExpre2) && (snd checkG))
+                                then do
+                                    ((G (fst checkExpre1) (getGuardOP guardOpParam) (fst checkExpre2) (Just(fst checkG))),True)                                    
+                            else
+                                ((G (Name "" [] Nothing) Equals (Name "" [] Nothing) Nothing), False)
+                    else do
+                            let (checkExpr1,b1) = checkExpression expr1
+                            let (checkExpr2,b2) = checkExpression expr2                        
+                            if (b1 && b2)
+                                then do
+                                    ((G (checkExpr1) (getGuardOP guardOpParam) (checkExpr2) Nothing), True)                                   
+                            else
+                                ((G (Name "" [] Nothing) Equals (Name "" [] Nothing) Nothing), False)
             else
-                False
+                ((G (Name "" [] Nothing) Equals (Name "" [] Nothing) Nothing), False)
     else
-        False
-
-checkExpression :: String -> Bool
+        ((G (Name "" [] Nothing) Equals (Name "" [] Nothing) Nothing), False)    
+    
+checkExpression :: String -> (Expression String, Bool)
 checkExpression text = do
     let exprIndex = (determineEndIndex text 0 0 0 0)
     if (exprIndex > -1)
@@ -187,32 +200,51 @@ checkExpression text = do
             let expr1 = fst (splitAt exprIndex text)
             if (checkExprPart1 expr1)
                 then do
-                     let names = snd (splitAt exprIndex text)
-                     if ((names /= "") && (head names) == '.')
+                    let names = snd (splitAt exprIndex text)
+                    if ((names /= "") && (head names) == '.')
                         then do
-                            let newnames = splitOn "." names
-                            if ((elemIndex '+' (last newnames)) /= Nothing)
+                            let expr2Index = elemIndex '+' names
+                            if (expr2Index /= Nothing)
                                 then do
-                                    let optexpr = splitOn " + " (last newnames)
-                                    let allnames = (init newnames) ++ (take 1 optexpr)
-                                    if (all checkNames (tail allnames))
+                                    let newnames = splitOn "." (fst (splitAt (fromJust(expr2Index) -1) names))
+                                    let optexpr = snd (splitAt (fromJust(expr2Index) +2) names)
+                                    if (all checkNames (tail newnames))
                                         then do
-                                            any checkExpression (take 2 optexpr)
+                                            if snd(checkExpression optexpr)
+                                                then do
+                                                    ((fillExprDataStructure expr1 (tail newnames) (Just((fst(checkExpression optexpr))))), True)                                                   
+                                                else
+                                                    ((Name "" [] Nothing), False)
+                                            else
+                                                ((Name "" [] Nothing), False)
+                            else do
+                                let newnames2 = (splitOn "." names)
+                                if(all checkNames (tail newnames2))
+                                    then do
+                                        ((fillExprDataStructure expr1 (tail newnames2) Nothing), True)
                                     else
-                                        False
-                            else
-                                all checkNames (tail newnames)
-                     else
+                                    ((Name "" [] Nothing), False)                               
+                    else
                         if ((elemIndex '+' names) /= Nothing)
                             then do
                                 let optexpr = snd(splitAt ((fromJust (elemIndex '+' names)) + 2) names)
-                                checkExpression (optexpr)
+                                ((fillExprDataStructure expr1 [] (Just((fst(checkExpression optexpr))))), True)
                         else
-                            True
+                            ((fillExprDataStructure expr1 [] Nothing), True)
             else
-                False
+                ((Name "" [] Nothing), False)
     else
-        False
+        ((Name "" [] Nothing), False)
+
+fillExprDataStructure :: String -> [String] -> Maybe (Expression String) -> Expression String
+fillExprDataStructure expr1 names expr2
+    | (head(expr1) == '\"') = ((StringLiteral expr1) names expr2)
+    | (head(expr1) == '{') = ((Block expr1) names expr2)
+    | (head(expr1) == '(') = ((Expression (init(drop 1 expr1))) names expr2)
+    | (head(expr1) == '*' || (isAlpha(head expr1))) = ((Name expr1) names expr2)
+    
+    -- syntax example of an Expression + Expression : Name "name" ["name1","name2"] (Just (StringLiteral "abc" [] Nothing))
+    -- syntax example of an Expression without snd expression: Name "name" ["name1","name2"] Nothing
         
 determineEndIndex :: String -> Int -> Int -> Int -> Int -> Int
 determineEndIndex text openQuotes openBlock openBrackets index
@@ -233,14 +265,14 @@ determineEndIndex text openQuotes openBlock openBrackets index
     | (index >= 0) && ((head text) == ')' && openBrackets == 1) = (index + 1)
     | (index >= 0) && ((head text) == ')' && openBrackets > 1) = determineEndIndex (tail text) openQuotes openBlock (openBrackets - 1) (index + 1)
     
-    | otherwise = determineEndIndex (tail text) openQuotes openBlock openBrackets (index+1)
-    
-determineEndIndexForGuard :: String -> Int -> Int -> Int -> Int -> Int
+    | otherwise = determineEndIndex (tail text) openQuotes openBlock openBrackets (index + 1)
+
+determineEndIndexForGuard :: String -> Int -> Int -> Int -> Int -> (Bool, Int)
 determineEndIndexForGuard text openQuotes openBlock openBrackets index
-    | ((text) == []) && ((openQuotes /= 0) || (openBlock /= 0) || (openBrackets /= 0)) = -1
-    | ((text) == []) && (openQuotes == 0) && (openBlock == 0) && (openBrackets == 0) = -1
-    | (((head text) == '=') || ((head text) == '#')) && (openQuotes == 0) && (openBlock == 0) && (openBrackets == 0) = (index)
-    
+    | ((text) == []) && ((openQuotes /= 0) || (openBlock /= 0) || (openBrackets /= 0)) = (False, -1)
+    | ((text) == []) && (openQuotes == 0) && (openBlock == 0) && (openBrackets == 0) = (False, -1)
+    | ((head text) == '=') && (openQuotes == 0) && (openBlock == 0) && (openBrackets == 0) = (True, index)
+    | ((head text) == '#') && (openQuotes == 0) && (openBlock == 0) && (openBrackets == 0) = (False, index)
     | (index >= 0) && ((head text) == '\"' && openQuotes == 0) && (openBlock == 0) && (openBrackets == 0) = determineEndIndexForGuard (tail text) (openQuotes + 1) openBlock openBrackets (index + 1)
     | (index >= 0) && ((head text) == '\"' && openQuotes == 1) && (openBlock == 0) && (openBrackets == 0) = determineEndIndexForGuard (tail text) (openQuotes - 1) openBlock openBrackets (index + 1)
         
@@ -252,13 +284,13 @@ determineEndIndexForGuard text openQuotes openBlock openBrackets index
     | (index >= 0) && ((head text) == '(' && openBrackets >= 1) = determineEndIndexForGuard (tail text) openQuotes openBlock (openBrackets + 1) (index + 1)
     | (index >= 0) && ((head text) == ')' && openBrackets >= 1) = determineEndIndexForGuard (tail text) openQuotes openBlock (openBrackets - 1) (index + 1)
     
-    | otherwise = determineEndIndexForGuard (tail text) openQuotes openBlock openBrackets (index+1)
-  
+    | otherwise = determineEndIndexForGuard (tail text) openQuotes openBlock openBrackets (index + 1)
+    
 checkExprPart1 :: String -> Bool
 checkExprPart1 text
     | ((head text) == '\"') && ((last text) == '\"') = True
-    | ((head text) == '{') && ((last text) == '}') = snd (checkBlock text)
-    | ((head text) == '(') && ((last text) == ')') = (checkExpression (init(drop 1 text)))
+    | ((head text) == '{') && ((last text) == '}') = (snd(checkBlock text))
+    | ((head text) == '(') && ((last text) == ')') = (snd(checkExpression (init(drop 1 text))))
     | ((head text) == '*') || (isAlpha(head text)) = True
     | otherwise = False
 
@@ -266,6 +298,11 @@ checkNames :: String -> Bool
 checkNames text
     | (isAlpha(head text)) = True
     | otherwise = False
+    
+getGuardOP :: Bool -> GuardOp
+getGuardOP bool
+    | (bool) = Equals
+    | not(bool) = NotEquals
     
 toggleQuotes :: Int -> Int
 toggleQuotes a
